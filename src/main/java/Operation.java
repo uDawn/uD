@@ -43,8 +43,8 @@ public class Operation {
         this.chaincodeID = ChaincodeID.newBuilder().setName(CHAIN_CODE_NAME)
                 .setVersion(CHAIN_CODE_VERSION)
                 .setPath(CHAIN_CODE_PATH).build();
-        this.myChannel.setTransactionWaitTime(testConfig.getTransactionWaitTime());
-        this.myChannel.setDeployWaitTime(testConfig.getDeployWaitTime());
+       // this.myChannel.setTransactionWaitTime(testConfig.getTransactionWaitTime());
+       // this.myChannel.setDeployWaitTime(testConfig.getDeployWaitTime());
         //Set up hfca for each sample org
 
         for (SampleOrg sampleOrg : testSampleOrgs) {
@@ -226,7 +226,8 @@ public class Operation {
         String tmp_amount = amount;
         final String channelName = this.myChannel.getName();
         out("Running channel %s", channelName);
-
+        this.myChannel.setTransactionWaitTime(testConfig.getTransactionWaitTime());                                  
+        this.myChannel.setDeployWaitTime(testConfig.getDeployWaitTime());
         Collection<Peer> channelPeers = this.myChannel.getPeers();
         Collection<Orderer> orderers = this.myChannel.getOrderers();
 
@@ -328,6 +329,8 @@ public class Operation {
     }
 
     public String query(String account) {
+        this.myChannel.setTransactionWaitTime(testConfig.getTransactionWaitTime());                                  
+        this.myChannel.setDeployWaitTime(testConfig.getDeployWaitTime());
         final String channelName = this.myChannel.getName();
         String tmp_amount = null;
 
