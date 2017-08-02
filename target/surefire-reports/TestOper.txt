@@ -2,7 +2,7 @@
 Test set: TestOper
 -------------------------------------------------------------------------------
 Tests run: 1, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 1.499 sec <<< FAILURE!
-test(TestOper)  Time elapsed: 1.444 sec  <<< ERROR!
+test(TestOper)  Time elapsed: 1.435 sec  <<< ERROR!
 java.lang.NullPointerException
 	at Operation.query(Operation.java:332)
 	at TestOper.test(TestOper.java:15)
