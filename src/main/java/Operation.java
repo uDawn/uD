@@ -11,6 +11,7 @@ import org.hyperledger.fabric_ca.sdk.RegistrationRequest;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.net.MalformedURLException;
 import java.nio.file.Paths;
 import java.util.*;
@@ -28,7 +29,7 @@ public class Operation {
     private static final String CHANNEL_NAME = "mychannel";
 
     private static final String ADMIN_NAME = "admin";
-    private static final String USER_1_NAME = "user1";
+    private static final String USER_1_NAME = "dddddd";
     private static final String FIXTURES_PATH = "src/sdkintegration";
 
     private static final String CHAIN_CODE_NAME = "mycc";
@@ -93,7 +94,11 @@ public class Operation {
                 SampleUser user = sampleStore.getMember(USER_1_NAME, sampleOrg.getName());
                 if (!user.isRegistered()) {  // users need to be registered AND enrolled
                     RegistrationRequest rr = new RegistrationRequest(user.getName(), "org1.department1");
-                    user.setEnrollmentSecret(ca.register(rr, admin));
+                    String tmp = ca.register(rr, admin);
+                    user.setEnrollmentSecret(tmp);
+                    File secret = new File("src/secret.txt");
+                    FileOutputStream write_secret = new FileOutputStream(secret,false);
+                    write_secret.write(tmp.getBytes());
                 }
                 if (!user.isEnrolled()) {
                     user.setEnrollment(ca.enroll(user.getName(), user.getEnrollmentSecret()));
