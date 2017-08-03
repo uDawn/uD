@@ -4,7 +4,7 @@ import org.junit.Test;
 
 public class TestOper {
 
-    @Test
+
     public void test() throws Exception{
         String res_1 = "not1";
         String res_2 = "not2";

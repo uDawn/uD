@@ -44,6 +44,7 @@ public class Operation {
 
     @Test
     public void setup() throws NoSuchFieldException, SecurityException, IllegalArgumentException, IllegalAccessException, MalformedURLException {
+        out("\n\n\nRUNNING: Operation.\n");
 
         this.testSampleOrgs = testConfig.getIntegrationTestsSampleOrgs();
 
