@@ -1,11 +1,14 @@
-import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.hyperledger.fabric.protos.common.Configtx;
+import org.hyperledger.fabric.protos.peer.Query;
 import org.hyperledger.fabric.sdk.*;
-import org.hyperledger.fabric.sdk.exception.CryptoException;
 import org.hyperledger.fabric.sdk.exception.InvalidArgumentException;
-import org.hyperledger.fabric.sdk.exception.TransactionEventException;
+import org.hyperledger.fabric.sdk.exception.ProposalException;
 import org.hyperledger.fabric.sdk.security.CryptoSuite;
 import org.hyperledger.fabric_ca.sdk.HFCAClient;
 import org.hyperledger.fabric_ca.sdk.RegistrationRequest;
+import org.junit.Test;
 
 import java.io.File;
 import java.net.MalformedURLException;
@@ -16,6 +19,8 @@ import java.util.concurrent.TimeUnit;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static junit.framework.Assert.*;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
 public class Operation {
     private Collection<SampleOrg> testSampleOrgs;
@@ -24,9 +29,9 @@ public class Operation {
 
     private static final String ADMIN_NAME = "admin";
     private static final String USER_1_NAME = "user1";
-    private static final String FIXTURES_PATH = "src/channel/";
+    private static final String FIXTURES_PATH = "src/sdkintegration";
 
-    private static final String CHAIN_CODE_NAME = "mycc_yl";
+    private static final String CHAIN_CODE_NAME = "mycc";
     private static final String CHAIN_CODE_PATH = "github.com/example_cc";
     private static final String CHAIN_CODE_VERSION = "1";
 
@@ -35,16 +40,15 @@ public class Operation {
     private HFClient client;
     private SampleOrg sampleOrg;
     private Channel myChannel;
-    private final ChaincodeID chaincodeID;
+    private ChaincodeID chaincodeID;
 
-    public Operation() throws NoSuchFieldException, SecurityException, IllegalArgumentException, IllegalAccessException, MalformedURLException {
-        testSampleOrgs = testConfig.getIntegrationTestsSampleOrgs();
-        this.sampleOrg = testConfig.getIntegrationTestsSampleOrg("peerOrg1");
-        this.chaincodeID = ChaincodeID.newBuilder().setName(CHAIN_CODE_NAME)
-                .setVersion(CHAIN_CODE_VERSION)
-                .setPath(CHAIN_CODE_PATH).build();
-       // this.myChannel.setTransactionWaitTime(testConfig.getTransactionWaitTime());
-       // this.myChannel.setDeployWaitTime(testConfig.getDeployWaitTime());
+    @Test
+    public void setup() throws NoSuchFieldException, SecurityException, IllegalArgumentException, IllegalAccessException, MalformedURLException {
+
+        this.testSampleOrgs = testConfig.getIntegrationTestsSampleOrgs();
+
+        // this.myChannel.setTransactionWaitTime(testConfig.getTransactionWaitTime());
+        // this.myChannel.setDeployWaitTime(testConfig.getDeployWaitTime());
         //Set up hfca for each sample org
 
         for (SampleOrg sampleOrg : testSampleOrgs) {
@@ -86,14 +90,14 @@ public class Operation {
                 sampleOrg.setAdmin(admin); // The admin of this org --
 
                 SampleUser user = sampleStore.getMember(USER_1_NAME, sampleOrg.getName());
-                /*if (!user.isRegistered()) {  // users need to be registered AND enrolled
+                if (!user.isRegistered()) {  // users need to be registered AND enrolled
                     RegistrationRequest rr = new RegistrationRequest(user.getName(), "org1.department1");
                     user.setEnrollmentSecret(ca.register(rr, admin));
                 }
                 if (!user.isEnrolled()) {
                     user.setEnrollment(ca.enroll(user.getName(), user.getEnrollmentSecret()));
                     user.setMspId(mspid);
-                }*/
+                }
                 sampleOrg.addUser(user); //Remember user belongs to this Org
 
                 final String sampleOrgName = sampleOrg.getName();
@@ -108,14 +112,45 @@ public class Operation {
                                 format("/users/Admin@%s/msp/signcerts/Admin@%s-cert.pem", sampleOrgDomainName, sampleOrgDomainName)).toFile());
 
                 sampleOrg.setPeerAdmin(peerOrgAdmin); //A special user that can create channels, join peers and install chaincode
-
             }
 
             ////////////////////////////
             //Construct and run the channels
-            this.myChannel = constructChannel(CHANNEL_NAME, client, sampleOrg);
+            this.sampleOrg = testConfig.getIntegrationTestsSampleOrg("peerOrg1");
+            this.chaincodeID = ChaincodeID.newBuilder().setName(CHAIN_CODE_NAME)
+                    .setVersion(CHAIN_CODE_VERSION)
+                    .setPath(CHAIN_CODE_PATH).build();
+
+            this.myChannel = constructChannel(this.CHANNEL_NAME, this.client, this.sampleOrg);
+            this.installChaincode(this.client , this.myChannel , this.sampleOrg);
+            this.instantiateChaincode(this.client , this.myChannel , this.sampleOrg);
+
+            String res_1 = "not1";
+            String res_2 = "not2";
+            String res_3 = "not3";
+            String res_4 = "not4";
+
+            res_1 = this.query("a");
+            res_2 = this.query("b");
+            out(String.format("New construct res_1:%s , res_2:%s" , res_1 , res_2));
+            this.transfer("a" , "b" , "10");
+            res_3 = this.query("a");
+            res_4 = this.query("b");
+            out(String.format("res_3:%s , res_4:%s" , res_3 , res_4));
+
+            this.myChannel = reconstructChannel(this.CHANNEL_NAME, this.client, this.sampleOrg);
+
+
+            res_1 = this.query("a");
+            res_2 = this.query("b");
+            out(String.format("Reconstruct res_1:%s , res_2:%s" , res_1 , res_2));
+            this.transfer("a" , "b" , "10");
+            res_3 = this.query("a");
+            res_4 = this.query("b");
+            out(String.format("res_3:%s , res_4:%s" , res_3 , res_4));
+
             //runChannel(this.client, this.myChannel, true, this.sampleOrg, 0);
-            this.myChannel.shutdown(true); // Force mychannel to shutdown clean up resources.
+            //this.myChannel.shutdown(true); // Force mychannel to shutdown clean up resources.
             out("\n");
 
             /*sampleOrg = testConfig.getIntegrationTestsSampleOrg("peerOrg2");
@@ -162,7 +197,7 @@ public class Operation {
         Orderer anOrderer = orderers.iterator().next();
         orderers.remove(anOrderer);
 
-        ChannelConfiguration channelConfiguration = new ChannelConfiguration(new File(FIXTURES_PATH +  "channel.tx"));
+        ChannelConfiguration channelConfiguration = new ChannelConfiguration(new File(FIXTURES_PATH + "/e2e-2Orgs/channel/foo.tx"));
 
         //Create channel that has only one signer that is this orgs peer admin. If channel creation policy needed more signature they would need to be added too.
         Channel newChannel = client.newChannel(name, anOrderer, channelConfiguration, client.getChannelConfigurationSignature(channelConfiguration, sampleOrg.getPeerAdmin()));
@@ -209,6 +244,195 @@ public class Operation {
 
     }
 
+    private Channel reconstructChannel(String name, HFClient client, SampleOrg sampleOrg) throws Exception{
+
+        client.setUserContext(sampleOrg.getPeerAdmin());
+        Channel newChannel = client.newChannel(name);
+
+        for (String orderName : sampleOrg.getOrdererNames()) {
+            newChannel.addOrderer(client.newOrderer(orderName, sampleOrg.getOrdererLocation(orderName),
+                    testConfig.getOrdererProperties(orderName)));
+        }
+
+        for (String peerName : sampleOrg.getPeerNames()) {
+            String peerLocation = sampleOrg.getPeerLocation(peerName);
+            Peer peer = client.newPeer(peerName, peerLocation, testConfig.getPeerProperties(peerName));
+
+            //Query the actual peer for which channels it belongs to and check it belongs to this channel
+            Set<String> channels = client.queryChannels(peer);
+            if (!channels.contains(name)) {
+                throw new AssertionError(format("Peer %s does not appear to belong to channel %s", peerName, name));
+            }
+
+            newChannel.addPeer(peer);
+            sampleOrg.addPeer(peer);
+        }
+
+        for (String eventHubName : sampleOrg.getEventHubNames()) {
+            EventHub eventHub = client.newEventHub(eventHubName, sampleOrg.getEventHubLocation(eventHubName),
+                    testConfig.getEventHubProperties(eventHubName));
+            newChannel.addEventHub(eventHub);
+        }
+
+        newChannel.initialize();
+
+        //Just see if we can get channelConfiguration. Not required for the rest of scenario but should work.
+        final byte[] channelConfigurationBytes = newChannel.getChannelConfigurationBytes();
+        Configtx.Config channelConfig = Configtx.Config.parseFrom(channelConfigurationBytes);
+        assertNotNull(channelConfig);
+        Configtx.ConfigGroup channelGroup = channelConfig.getChannelGroup();
+        assertNotNull(channelGroup);
+        Map<String, Configtx.ConfigGroup> groupsMap = channelGroup.getGroupsMap();
+        assertNotNull(groupsMap.get("Orderer"));
+        assertNotNull(groupsMap.get("Application"));
+
+        //Before return lets see if we have the chaincode on the peers that we expect from End2endIT
+        //And if they were instantiated too.
+
+        for (Peer peer : newChannel.getPeers()) {
+
+            if (!checkInstalledChaincode(client, peer, CHAIN_CODE_NAME, CHAIN_CODE_PATH, CHAIN_CODE_VERSION)) {
+                throw new AssertionError(format("Peer %s is missing chaincode name: %s, path:%s, version: %s",
+                        peer.getName(), CHAIN_CODE_NAME, CHAIN_CODE_PATH, CHAIN_CODE_PATH));
+            }
+
+            if (!checkInstantiatedChaincode(newChannel, peer, CHAIN_CODE_NAME, CHAIN_CODE_PATH, CHAIN_CODE_VERSION)) {
+
+                throw new AssertionError(format("Peer %s is missing instantiated chaincode name: %s, path:%s, version: %s",
+                        peer.getName(), CHAIN_CODE_NAME, CHAIN_CODE_PATH, CHAIN_CODE_PATH));
+            }
+
+        }
+
+        return newChannel;
+
+    }
+
+    private void installChaincode(HFClient client, Channel channel, SampleOrg sampleOrg) {
+        try {
+
+            final String channelName = channel.getName();
+            out("Running channel %s", channelName);
+            channel.setTransactionWaitTime(testConfig.getTransactionWaitTime());
+            channel.setDeployWaitTime(testConfig.getDeployWaitTime());
+
+            Collection<Peer> channelPeers = channel.getPeers();
+            Collection<Orderer> orderers = channel.getOrderers();
+            final ChaincodeID chaincodeID;
+            Collection<ProposalResponse> responses;
+            Collection<ProposalResponse> successful = new LinkedList<>();
+            Collection<ProposalResponse> failed = new LinkedList<>();
+
+            chaincodeID = ChaincodeID.newBuilder().setName(CHAIN_CODE_NAME)
+                    .setVersion(CHAIN_CODE_VERSION)
+                    .setPath(CHAIN_CODE_PATH).build();
+
+            ////////////////////////////
+            // Install Proposal Request
+            //
+
+            client.setUserContext(sampleOrg.getPeerAdmin());
+
+            out("Creating install proposal");
+
+            InstallProposalRequest installProposalRequest = client.newInstallProposalRequest();
+            installProposalRequest.setChaincodeID(chaincodeID);
+
+
+            // on foo chain install from directory.
+
+            ////For GO language and serving just a single user, chaincodeSource is mostly likely the users GOPATH
+            installProposalRequest.setChaincodeSourceLocation(new File(FIXTURES_PATH + "/gocc/sample1"));
+
+            installProposalRequest.setChaincodeVersion(CHAIN_CODE_VERSION);
+
+            out("Sending install proposal");
+
+            ////////////////////////////
+            // only a client from the same org as the peer can issue an install request
+            int numInstallProposal = 0;
+            //    Set<String> orgs = orgPeers.keySet();
+            //   for (SampleOrg org : testSampleOrgs) {
+
+            Set<Peer> peersFromOrg = sampleOrg.getPeers();
+            numInstallProposal = numInstallProposal + peersFromOrg.size();
+            responses = client.sendInstallProposal(installProposalRequest, peersFromOrg);
+
+            for (ProposalResponse response : responses) {
+                if (response.getStatus() == ProposalResponse.Status.SUCCESS) {
+                    out("Successful install proposal response Txid: %s from peer %s", response.getTransactionID(), response.getPeer().getName());
+                    successful.add(response);
+                } else {
+                    failed.add(response);
+                }
+            }
+
+            SDKUtils.getProposalConsistencySets(responses);
+            //   }
+            out("Received %d install proposal responses. Successful+verified: %d . Failed: %d", numInstallProposal, successful.size(), failed.size());
+
+            if (failed.size() > 0) {
+                ProposalResponse first = failed.iterator().next();
+                fail("Not enough endorsers for install :" + successful.size() + ".  " + first.getMessage());
+            }
+
+        } catch (Exception e) {
+
+        }
+    }
+
+    private void instantiateChaincode(HFClient client, Channel channel, SampleOrg sampleOrg) {
+        Collection<ProposalResponse> successful = new LinkedList<>();
+        Collection<ProposalResponse> failed = new LinkedList<>();
+        Collection<ProposalResponse> responses;
+
+        try {
+
+            InstantiateProposalRequest instantiateProposalRequest = client.newInstantiationProposalRequest();
+            instantiateProposalRequest.setProposalWaitTime(testConfig.getProposalWaitTime());
+            instantiateProposalRequest.setChaincodeID(chaincodeID);
+            instantiateProposalRequest.setFcn("init");
+            instantiateProposalRequest.setArgs(new String[]{"a", "500", "b", "200"});
+            Map<String, byte[]> tm = new HashMap<>();
+            tm.put("HyperLedgerFabric", "InstantiateProposalRequest:JavaSDK".getBytes(UTF_8));
+            tm.put("method", "InstantiateProposalRequest".getBytes(UTF_8));
+            instantiateProposalRequest.setTransientMap(tm);
+
+            /*
+              policy OR(Org1MSP.member, Org2MSP.member) meaning 1 signature from someone in either Org1 or Org2
+              See README.md Chaincode endorsement policies section for more details.
+            */
+            ChaincodeEndorsementPolicy chaincodeEndorsementPolicy = new ChaincodeEndorsementPolicy();
+            chaincodeEndorsementPolicy.fromYamlFile(new File(FIXTURES_PATH + "/chaincodeendorsementpolicy.yaml"));
+            instantiateProposalRequest.setChaincodeEndorsementPolicy(chaincodeEndorsementPolicy);
+
+            out("Sending instantiateProposalRequest to all peers with arguments: a and b set to 500 and 200 respectively");
+            successful.clear();
+            failed.clear();
+
+            //Send responses both ways with specifying peers and by using those on the channel.
+            responses = channel.sendInstantiationProposal(instantiateProposalRequest, channel.getPeers());
+
+            for (ProposalResponse response : responses) {
+                if (response.isVerified() && response.getStatus() == ProposalResponse.Status.SUCCESS) {
+                    successful.add(response);
+                    out("Succesful instantiate proposal response Txid: %s from peer %s", response.getTransactionID(), response.getPeer().getName());
+                } else {
+                    failed.add(response);
+                }
+            }
+            out("Received %d instantiate proposal responses. Successful+verified: %d . Failed: %d", responses.size(), successful.size(), failed.size());
+            if (failed.size() > 0) {
+                ProposalResponse first = failed.iterator().next();
+                fail("Not enough endorsers for instantiate :" + successful.size() + "endorser failed with " + first.getMessage() + ". Was verified:" + first.isVerified());
+            }
+
+        } catch (Exception e) {
+
+        }
+
+    }
+
     static void out(String format, Object... args) {
 
         System.err.flush();
@@ -220,13 +444,51 @@ public class Operation {
 
     }
 
+    private static boolean checkInstalledChaincode(HFClient client, Peer peer, String ccName, String ccPath, String ccVersion) throws InvalidArgumentException, ProposalException {
+
+        out("Checking installed chaincode: %s, at version: %s, on peer: %s", ccName, ccVersion, peer.getName());
+        List<Query.ChaincodeInfo> ccinfoList = client.queryInstalledChaincodes(peer);
+
+        boolean found = false;
+
+        for (Query.ChaincodeInfo ccifo : ccinfoList) {
+
+            found = ccName.equals(ccifo.getName()) && ccPath.equals(ccifo.getPath()) && ccVersion.equals(ccifo.getVersion());
+            if (found) {
+                break;
+            }
+
+        }
+
+        return found;
+    }
+
+    private static boolean checkInstantiatedChaincode(Channel channel, Peer peer, String ccName, String ccPath, String ccVersion) throws InvalidArgumentException, ProposalException {
+        out("Checking instantiated chaincode: %s, at version: %s, on peer: %s", ccName, ccVersion, peer.getName());
+        List<Query.ChaincodeInfo> ccinfoList = channel.queryInstantiatedChaincodes(peer);
+
+        boolean found = false;
+
+        for (Query.ChaincodeInfo ccifo : ccinfoList) {
+            found = ccName.equals(ccifo.getName()) && ccPath.equals(ccifo.getPath()) && ccVersion.equals(ccifo.getVersion());
+            if (found) {
+                break;
+            }
+
+        }
+
+        return found;
+    }
+
     public boolean transfer(String account_1, String account_2, String amount) {
         String tmp_account_1 = account_1;
         String tmp_account_2 = account_2;
         String tmp_amount = amount;
         final String channelName = this.myChannel.getName();
+
         out("Running channel %s", channelName);
-        this.myChannel.setTransactionWaitTime(testConfig.getTransactionWaitTime());                                  
+
+        this.myChannel.setTransactionWaitTime(testConfig.getTransactionWaitTime());
         this.myChannel.setDeployWaitTime(testConfig.getDeployWaitTime());
         Collection<Peer> channelPeers = this.myChannel.getPeers();
         Collection<Orderer> orderers = this.myChannel.getOrderers();
@@ -240,10 +502,8 @@ public class Operation {
         //this.myChannel.sendTransaction(successful, orderers).thenApply(transactionEvent -> {
 
         try {
-            successful.clear();
-            failed.clear();
 
-            this.client.setUserContext(sampleOrg.getUser(USER_1_NAME));
+            this.client.setUserContext(this.sampleOrg.getUser(USER_1_NAME));
 
             ///////////////
             /// Send transaction proposal to all peers
@@ -251,7 +511,7 @@ public class Operation {
             transactionProposalRequest.setChaincodeID(this.chaincodeID);
             transactionProposalRequest.setFcn("invoke");
             transactionProposalRequest.setProposalWaitTime(testConfig.getProposalWaitTime());
-            transactionProposalRequest.setArgs(new String[]{"move", tmp_account_1, tmp_account_2, tmp_amount});
+            transactionProposalRequest.setArgs(new String[]{"transfer", tmp_account_1, tmp_account_2, tmp_amount});
 
             Map<String, byte[]> tm2 = new HashMap<>();
             tm2.put("HyperLedgerFabric", "TransactionProposalRequest:JavaSDK".getBytes(UTF_8));
@@ -329,7 +589,7 @@ public class Operation {
     }
 
     public String query(String account) {
-        this.myChannel.setTransactionWaitTime(testConfig.getTransactionWaitTime());                                  
+        this.myChannel.setTransactionWaitTime(testConfig.getTransactionWaitTime());
         this.myChannel.setDeployWaitTime(testConfig.getDeployWaitTime());
         final String channelName = this.myChannel.getName();
         String tmp_amount = null;
@@ -344,10 +604,10 @@ public class Operation {
                 ////////////////////////////
                 // Send Query Proposal to all peers
                 //
-                String expect = "" + (300);
+                String expect = "300";
                 out("Now query chaincode for the value of b.");
                 QueryByChaincodeRequest queryByChaincodeRequest = client.newQueryProposalRequest();
-                queryByChaincodeRequest.setArgs(new String[]{"query", "b"});
+                queryByChaincodeRequest.setArgs(new String[]{"query", account});
                 queryByChaincodeRequest.setFcn("invoke");
                 queryByChaincodeRequest.setChaincodeID(chaincodeID);
 
@@ -471,5 +731,9 @@ public class Operation {
         }
 
         return false;
+    }
+
+    public void shutdown(){
+        this.myChannel.shutdown(true);
     }
 }

@@ -23,6 +23,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 /**
  * Config allows for a global config of the toolkit. Central location for all
  * toolkit configuration defaults. Has a local config file that can override any
@@ -40,10 +41,10 @@ import java.util.regex.Pattern;
 public class TestConfig {
     private static final Log logger = LogFactory.getLog(TestConfig.class);
 
-    private static final String DEFAULT_CONFIG = "src/main/java/testutils.properties";
-    private static final String ORG_HYPERLEDGER_FABRIC_SDK_CONFIGURATION = "org.hyperledger.fabric.sdktest.configuration";
+    private static final String DEFAULT_CONFIG = "src/main/java/operate.properties";
+    private static final String ORG_HYPERLEDGER_FABRIC_SDK_CONFIGURATION = "org.hyperledger.fabric.operate.configuration";
 
-    private static final String PROPBASE = "org.hyperledger.fabric.sdktest.";
+    private static final String PROPBASE = "org.hyperledger.fabric.operate.";
 
     private static final String GOSSIPWAITTIME = PROPBASE + "GossipWaitTime";
     private static final String INVOKEWAITTIME = PROPBASE + "InvokeWaitTime";
@@ -155,7 +156,7 @@ public class TestConfig {
                 sampleOrg.setCALocation(httpTLSify(sdkProperties.getProperty((INTEGRATIONTESTS_ORG + org.getKey() + ".ca_location"))));
 
                 if (runningFabricCATLS) {
-                    String cert = "src/channel/crypto-config/peerOrganizations/DNAME/ca/ca.DNAME-cert.pem".replaceAll("DNAME", domainName);
+                    String cert = "src/sdkintegeration/e2e-2Orgs/channel/crypto-config/peerOrganizations/DNAME/ca/ca.DNAME-cert.pem".replaceAll("DNAME", domainName);
                     File cf = new File(cert);
                     if (!cf.exists() || !cf.isFile()) {
                         throw new RuntimeException("TEST is missing cert file " + cf.getAbsolutePath());
@@ -308,7 +309,7 @@ public class TestConfig {
 
     public String getTestChannelPath() {
 
-        return "src/channel";
+        return "src/sdkintegeration/e2e-2Orgs/channel/";
 
     }
 
